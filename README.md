@@ -1,0 +1,3 @@
+# Todo Clean Architecture (.NET 8)
+
+Quick Start Instructions...

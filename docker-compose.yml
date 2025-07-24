@@ -1,0 +1,75 @@
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: Y
+      SA_PASSWORD: "YourStrong@Passw0rd"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -Q 'SELECT 1' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - sql-data:/var/opt/mssql
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    ports:
+      - "5001:80"
+    depends_on:
+      sql:
+        condition: service_healthy   # ← вот это ключевое
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__Sql=Server=sql,1433;Database=TodoDb;User=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - ConnectionStrings__Hangfire=Server=sql,1433;Database=TodoDb;User=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - Jwt__Secret=super-long-secret-key-for-demo-only
+      - Jwt__Issuer=TodoApi
+      - Jwt__Audience=TodoApi
+      - Smtp__Host=smtp.ethereal.email
+      - Smtp__Port=587
+      - Smtp__User=username@ethereal.email
+      - Smtp__Pass=password
+      - Smtp__From=noreply@todo.local
+      - Telegram__Token=YOUR_BOT_TOKEN
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    depends_on:
+      sql:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__Sql=Server=sql,1433;Database=TodoDb;User=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - ConnectionStrings__Hangfire=Server=sql,1433;Database=TodoDb;User=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - Jwt__Secret=super-long-secret-key-for-demo-only
+      - Smtp__Host=smtp.ethereal.email
+      - Smtp__Port=587
+      - Smtp__User=username@ethereal.email
+      - Smtp__Pass=password
+      - Smtp__From=noreply@todo.local
+      - Telegram__Token=YOUR_BOT_TOKEN
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot
+    depends_on:
+      sql:
+        condition: service_healthy
+    environment:
+      - ConnectionStrings__Sql=Server=sql,1433;Database=TodoDb;User=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - Telegram__Token=YOUR_BOT_TOKEN
+
+volumes:
+  sql-data:
